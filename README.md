@@ -1,8 +1,8 @@
-# nw-builder [![NPM version][npm-image]][npm-url] [![Build Status][travis-image]][travis-url] [![Dependency Status][depstat-image]][depstat-url]
+# nw-builder [![NPM version][npm-image]][npm-url] [![Build Status][travis-image]][travis-url] [![Dependency Status][depstat-image]][depstat-url] [![Join the chat at https://gitter.im/nwjs/nw-builder](https://badges.gitter.im/nwjs/nw-builder.svg)](https://gitter.im/nwjs/nw-builder?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 [![NPM](https://nodei.co/npm/nw-builder.png?downloads=true)](https://nodei.co/npm/nw-builder/)
 
-> Lets you build your [NW.js](https://github.com/nwjs/nw.js) apps for mac, win and linux via cli. It will download the prebuilt binaries for a newest version, unpacks it, creates a release folder, create the app.nw file for a specified directory and copies the app.nw file where it belongs.
+> Build your [NW.js](https://github.com/nwjs/nw.js) apps for Mac, Win and Linux programmatically or via CLI.
 
 
 ### Installation
@@ -21,13 +21,13 @@ npm install nw-builder -g
 Yes, there is also a [Grunt Plugin](https://github.com/nwjs/grunt-nw-builder). For Gulp, just use the module :)
 
 
-## Usage
+## CLI Usage
 
 ```shell
 Usage: nwbuild [options] [path]
 
 Options:
-  -p, --platforms      Platforms to build, comma-sperated, can be: win32,win64,osx32,osx64,linux32,linux64   ['osx32', 'osx64', 'win32', 'win64']
+  -p, --platforms      Platforms to build, comma-sperated, can be: win32,win64,osx32,osx64,linux32,linux64   ['osx64', 'win32', 'win64']
   -v, --version        The nw version, eg. 0.8.4                                             [default: "latest"]
   -r, --run            Runs NW.js for the current platform                                   [default: false]
   -o, --buildDir       The build folder                                                      [default: "./build"]
@@ -39,20 +39,19 @@ Options:
 #### Run NW.js
 During development you can run NW.js with `nwbuild -r path/to/your/younwapp/`
 
-Or use the module:
+## Module Usage
 
 ```js
 var NwBuilder = require('nw-builder');
 var nw = new NwBuilder({
     files: './path/to/nwfiles/**/**', // use the glob format
-    platforms: ['osx32', 'osx64', 'win32', 'win64']
+    platforms: ['osx64', 'win32', 'win64'],
+    version: '0.14.6'
 });
 
-//Log stuff you want
-
+// Log stuff you want
 nw.on('log',  console.log);
 
-// Build returns a promise
 nw.build().then(function () {
    console.log('all done!');
 }).catch(function (error) {
@@ -60,13 +59,23 @@ nw.build().then(function () {
 });
 ```
 
-`build` also supports callbacks:
+During development you can run NW.js with `run`:
 
-```javascript
+```js
+nw.run().then(function () {
+   console.log('all done!');
+}).catch(function (error) {
+    console.error(error);
+});
+```
+
+`build` and `run` also supports callbacks:
+
+```js
 nw.build(function(err) {
-    if(err) console.log(err);
-})
-
+    if(err) return console.error(err);
+    console.log('all done!');
+});
 ```
 
 ### Options
@@ -79,18 +88,28 @@ The path to your node webkit app. It supports [simple-glob](https://github.com/j
 
 
 #### options.version
-Type: `String`
-Default value: `'latest'`
+Type: `String`  
+Default value: `'latest'`  
 
 The version of NW.js you want to use. Per default it looks up the latest version. [Here is a list](https://github.com/nwjs/nw.js/wiki/Downloads-of-old-versions) of all available releases
 
+#### options.flavor
+Type: `String`  
+Default value: `'sdk'`  
+
+The flavor of NW.js you want to use. Per default it will be `sdk`. [Here is a list](https://github.com/nwjs/nw.js/wiki/Build-Flavors) of all flavor available.
+
+The value `sdk` is most used for development whereas `normal` for production.
+
 #### options.platforms
 Type: `Array`  
-Default value: `['osx32', 'osx64', 'win32', 'win64']`
+Default value: `['osx64', 'win32', 'win64']`  
 
 The platforms you want to build. Can be `['win32', 'win64', 'osx32', 'osx64', 'linux32', 'linux64']`
 
 The values `['win', 'osx', 'linux']` can also be used and will build both the 32 and 64 bit versions of the specified platforms.
+
+Be aware that the osx32 version can only be built with legacy version of nwjs. Since > 0.12.0, only 64 bits for osx works.
 
 #### options.appName
 Type: `String`  
@@ -145,11 +164,19 @@ Default value: `false`
 
 MAC ONLY: The path to your ICNS icon file. If your don't provide your own it will use the one provided by NW.js
 
-#### options.macZip
+#### options.zip
 Type: `Boolean`  
-Default value: `false`  
+Default value: `null`  
 
-MAC ONLY: Use a `app.nw` folder instead of `ZIP` file, this significantly improves the startup speed of applications on `mac`, since no decompressing is needed. Builds on other platforms will still use `ZIP` files.
+WINDOW ONLY: Instead of zipping the application and merging it into the executable the application content is placed next to the application (which speed up the startup time for large apps). The default behaviour is platform specific. For `windows` and `linux`, the application is zipped and merged into the executable. For `mac`, the application is not zipped.
+
+#### options.zipOptions
+Type: `Object`  
+Default value: `null`  
+
+Allows to configure the underling zip library parameters, like store or compression ratio.
+
+See [archiver](http://archiverjs.com/docs/global.html#ZipOptions) documentation for detailed description of properties.
 
 #### options.macPlist
 Type: `String` or `Object`  
@@ -157,11 +184,35 @@ Default value: `false`
 
 MAC ONLY: Pass a string containing the path to your own plist file. If a string isn't passed, a plist file will be generated from your package.json. Pass an object to overwrite or add properties to the generated plist file.
 
+
+#### options.winVersionString
+Type: `Object`
+Default value: `{}`
+
+WINDOWS ONLY: Some descriptors of the executable. If your don't provide your own `FileDescription`, it will default to `options.appName`. If you are building on MAC or LINUX you must have [Wine](https://www.winehq.org/) installed to use this option.
+
+See [the MSDN docs](https://msdn.microsoft.com/en-us/library/windows/desktop/aa381058.aspx#string-name) for more options than the basic list below,
+
+```
+winVersionString: {
+  'CompanyName': 'Some Company',
+  'FileDescription': 'Process Name',
+  'ProductName': 'Some Product',
+  'LegalCopyright': 'Copyright 2017',
+}
+```
+
 #### options.winIco
 Type: `String`  
 Default value: `null`  
 
 WINDOWS ONLY: The path to your ICO icon file. If your don't provide your own it will use the one provided by NW.js. If you are building on MAC or LINUX you must have [Wine](https://www.winehq.org/) installed to use this option.
+
+#### options.macZip (DEPRECATED)
+Type: `Boolean`  
+Default value: `null`  
+
+MAC ONLY: Use a `app.nw` folder instead of `ZIP` file, this significantly improves the startup speed of applications on `mac`, since no decompressing is needed. Builds on other platforms will still use `ZIP` files. The default behaviour of node-webkit-builder is to not use `ZIP` files on the `mac` platform. In case of the `mac` platform the option `macZip` can override the option `zip`.
 
 ### Manifest Options
 
@@ -245,29 +296,28 @@ Darwin (OS X kernel) has a low limit for file descriptors (256 per process) by d
 
 To get around it, run `ulimit -n 1024` (or add it to your `~/.bash_profile`). For more information, see [henvic/osx-ulimit](https://github.com/henvic/osx-ulimit).
 
+## Team
+
+**Current**
+
+- Adam Lynch ([@adam-lynch](https://github.com/adam-lynch))
+- Rémy Boulanouar ([@DblK](https://github.com/DblK))
+- You? :smile:. We're open to contributions (to the code, documentation, or anything else) and or additional maintainers.
+
+**Past**
+
+- Steffen Müller ([@steffenmllr](https://github.com/steffenmllr)) (Creator)
+- Gabe Paez ([@gabepaez](https://github.com/gabepaez))
+- Andy Trevorah ([@trevorah](https://github.com/trevorah))
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Release History
-- 2015-12-06    `2.1.0` added `cacheDir` command-line option, fix for no info being passed back, etc.
-- 2015-06-28    `2.0.2` put upper bound to semver check for windows.
-- 2015-06-14    `2.0.1` safer validation of versions.
-- 2015-06-14    `2.0.0` changed to nw-builder, etc.
-- 2015-05-05    `1.0.12` when using latest NW.js version, it's first validated that it's not an alpha version (fixes [#222](https://github.com/nwjs/nw-builder/issues/222)). Plus a fix for the `winIco` & `macIcns` command line options
-- 2015-01-29    `1.0.8` fixed EMFILE errors (see [#147](https://github.com/nwjs/nw-builder/issues/147) [#148](https://github.com/nwjs/nw-builder/pull/148))
-- 2015-01-21    `1.0.7` fixed about screen when copyright is not supplied
-- 2015-01-15    `1.0.6` fixed downloads for nw.js version 0.12.0-alpha1
-- 2015-01-15    `1.0.5` fixed downloads for NW.js versions < 0.12.0-alpha
-- 2014-12-12    `1.0.0` 64-bit support, improved platform-overrides and no more EMFILE errors.
-- 2014-12-07    `0.4.0` macPlist CFBundleIdentifier is generated from `package.json` (see [#131](https://github.com/nwjs/nw-builder/pull/131))
-- 2014-11-14    `0.3.0` macPlist option improvements (see [#96](https://github.com/nwjs/nw-builder/pull/96))
-- 2014-10-30    `0.2.0` adds support for platform-specific manifest overrides (see [#94](https://github.com/nwjs/nw-builder/pull/94))
-- 2014-08-19    `0.1.2` adds a progress bar to downloads, fixes downloading through a proxy, fixed winIco, bug fixes
-- 2014-08-01    `0.1.0` use app filename for generated executables, optimized version checking, (known issue: `winIco` on windows)
-- 2014-07-31    `0.0.4` fixed compatibility with nodewebkit 0.10.0
-- 2014-04-20    Added run option, bug fixes
-- 2014-04-13    Preview Release
+
+See [CHANGELOG.md](CHANGELOG.md) or [Releases](https://github.com/nwjs-community/nw-builder/blob/develop/releases).
+
 ## License
 
 [MIT License](https://en.wikipedia.org/wiki/MIT_License)
@@ -275,8 +325,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 [npm-url]: https://www.npmjs.com/package/nw-builder
 [npm-image]: https://img.shields.io/npm/v/nw-builder.svg?style=flat
 
-[travis-url]: https://travis-ci.org/mllrsohn/nw-builder
-[travis-image]: https://img.shields.io/travis/mllrsohn/nw-builder/master.svg?style=flat
+[travis-url]: https://travis-ci.org/nwjs/nw-builder
+[travis-image]: https://img.shields.io/travis/nwjs/nw-builder/master.svg?style=flat
 
-[depstat-url]: https://david-dm.org/mllrsohn/nw-builder
-[depstat-image]: https://david-dm.org/mllrsohn/nw-builder.svg?style=flat
+[depstat-url]: https://david-dm.org/nwjs/nw-builder
+[depstat-image]: https://david-dm.org/nwjs/nw-builder.svg?style=flat

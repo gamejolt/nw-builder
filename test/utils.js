@@ -8,9 +8,20 @@ var DecompressZip = require('decompress-zip');
 var _ = require('lodash');
 var EventEmitter = require('events').EventEmitter;
 var del = require('rimraf');
-var Promise = require('bluebird');
-var tempFile = Promise.promisify(temp.open);
-var tempFileCleanup = Promise.promisify(temp.cleanup);
+var thenify = require('thenify');
+var isWindows = process.platform === 'win32';
+var tempFile = thenify(temp.open);
+
+var tempFileCleanup = function(){
+    return new Promise(function(resolve, reject){
+        temp.cleanup(function(err, result){
+            if(err){
+                return reject(err);
+            }
+            resolve(result);
+        });
+    });
+};
 
 test('getPackageInfo invalid', function (t) {
     t.plan(1);
@@ -78,7 +89,7 @@ test('generate and write a valid plist file', function (t) {
 test('getFileList', function (t) {
     t.plan(5);
 
-    utils.getFileList('./test/fixtures/nwapp/**').then(function(data) {
+    utils.getFileList(['./test/fixtures/nwapp/**', '!./test/fixtures/nwapp/README.md']).then(function(data) {
         t.equal(data.json, path.normalize('test/fixtures/nwapp/package.json'), 'figure out the right json');
         var expected = [{
             "src" : path.normalize("test/fixtures/nwapp/images/imagefile.img"),
@@ -112,7 +123,7 @@ test('getFileList', function (t) {
         t.equal(error, 'No files matching');
     });
 
-    utils.getFileList(['./test/fixtures/nwapp/**/*', '!./test/fixtures/nwapp/node_modules/**/*',  '!./test/fixtures/nwapp/javascript/**/*']).then(function(data) {
+    utils.getFileList(['./test/fixtures/nwapp/**/*', '!./test/fixtures/nwapp/node_modules/**/*',  '!./test/fixtures/nwapp/javascript/**/*', '!./test/fixtures/nwapp/README.md']).then(function(data) {
         var expected = [{
             "src" : path.normalize("test/fixtures/nwapp/images/imagefile.img"),
             "dest": path.normalize("images/imagefile.img")
@@ -146,7 +157,7 @@ test('should zip the app and create the app.nw file + log it', function (t) {
     }, {
         "src" : path.normalize("test/fixtures/nwapp/package.json"),
         "dest": path.normalize("package.json")
-    }], expected = _.pluck(files, 'dest').sort();
+    }], expected = _.map(files, 'dest').sort();
 
     var _evt = new EventEmitter();
     _evt.on('log', function (logging) {
@@ -200,7 +211,7 @@ testSetup({
 });
 
 test('mergeFiles', function (t) {
-    t.plan(2);
+    t.plan(isWindows ? 1 : 2);
 
     var releasefile = temp.openSync();
     fs.writeFileSync(releasefile.path, 'A');
@@ -212,7 +223,10 @@ test('mergeFiles', function (t) {
         var contents = fs.readFileSync(releasefile.path);
         var stats    = fs.lstatSync(releasefile.path);
         t.equal(contents.toString(), 'AB', 'merge two files');
-        t.equal(stats.mode.toString(8), '100755', 'fix the permission'); // DOES NOT WORK ON WINDOWS
+
+        if(!isWindows) {
+            t.equal(stats.mode.toString(8), '100755', 'fix the permission'); // DOES NOT WORK ON WINDOWS
+        }
     });
 
 });
